@@ -3,6 +3,12 @@ import { onTestFinished } from "vitest";
 import { type Session } from "next-auth";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgMembership,
+  createProjectMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -21,11 +27,15 @@ const prepare = async () => {
       where: { id: { in: [owner.id, other.id] } },
     });
   });
-  await prisma.organizationMembership.createMany({
-    data: [
-      { orgId: org.id, userId: owner.id, role: "ADMIN" },
-      { orgId: org.id, userId: other.id, role: "VIEWER" },
-    ],
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: owner.id,
+    role: "ADMIN",
+  });
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: other.id,
+    role: "VIEWER",
   });
   const callerFor = (
     userId: string,
@@ -206,17 +216,17 @@ describe("session views", () => {
       const admin = callerFor(owner.id, "ADMIN");
       const creator = callerFor(other.id, "ADMIN");
       const { view } = await creator.sessionViews.create(input);
-      const membership = await prisma.organizationMembership.update({
-        where: { orgId_userId: { orgId: org.id, userId: other.id } },
-        data: { role: orgRole },
+      const membership = await updateOrgMembership(prisma, {
+        orgId: org.id,
+        userId: other.id,
+        role: orgRole,
       });
-      await prisma.projectMembership.create({
-        data: {
-          projectId: project.id,
-          userId: other.id,
-          orgMembershipId: membership.id,
-          role: "MEMBER",
-        },
+      await createProjectMembership(prisma, {
+        orgId: org.id,
+        projectId: project.id,
+        userId: other.id,
+        orgMembershipId: membership.id,
+        role: "MEMBER",
       });
       const { view: retained } = await admin.sessionViews.create({
         ...input,
@@ -360,11 +370,11 @@ describe("session views", () => {
       pinnedViewIds: [],
       unpinnedViewIds: ["messages"],
     });
-    await prisma.organizationMembership.delete({
-      where: { orgId_userId: { orgId: org.id, userId: other.id } },
-    });
-    await prisma.organizationMembership.create({
-      data: { orgId: org.id, userId: other.id, role: "VIEWER" },
+    await deleteOrgMembership(prisma, { orgId: org.id, userId: other.id });
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: other.id,
+      role: "VIEWER",
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
