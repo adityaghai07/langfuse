@@ -18,7 +18,12 @@ import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { initializeEventByteAccounting } from "../../services/ClickhouseWriter/eventByteAccounting";
 import { otelIngestionQueueProcessorBuilder } from "../../queues/otelIngestionQueue";
 import { ingestionQueueProcessorBuilder } from "../../queues/ingestionQueue";
-import { configureOtelReplayEnvironment } from "./otelReplaySetup";
+import * as dispatchConfig from "../../features/eventsDispatch/config";
+import * as traceSampling from "../../features/traceBatching/traceBatchSampling";
+import {
+  configureOtelReplayEnvironment,
+  otelReplayMocks,
+} from "./otelReplaySetup";
 
 type OtelReplayStoredRow = Record<string, unknown>;
 
@@ -163,6 +168,48 @@ export async function runOtelReplayComparison(
     earlyTs: results["early-ts"],
     earlyRust: results["early-rust"],
   };
+}
+
+/** Compare the capacity reported to trace dispatch after each writer accepts a span. */
+export async function runSampledOtelReplayComparison(
+  params: Omit<RunOtelReplayParams, "captureSideEffects">,
+): Promise<OtelRawReplayComparison> {
+  const dispatch = vi
+    .spyOn(dispatchConfig, "isEventsDispatchEnabled")
+    .mockReturnValue(true);
+  const sampling = vi
+    .spyOn(traceSampling, "resolveTraceBatchSamplingRate")
+    .mockResolvedValue(1);
+  const collected = otelReplayMocks.collectTraceActivity;
+  collected.mockClear();
+  try {
+    const comparison = await runOtelReplayComparison({
+      ...params,
+      captureSideEffects: () => {
+        const samples = collected.mock.calls.map(([activity]) => activity);
+        collected.mockClear();
+        return samples.sort(
+          (left, right) =>
+            left.traceId.localeCompare(right.traceId) ||
+            left.spanStartTimeISO.localeCompare(right.spanStartTimeISO) ||
+            left.serializedEventBytes - right.serializedEventBytes,
+        );
+      },
+    });
+    expect(comparison.originalTs.sideEffects).toHaveLength(
+      comparison.originalTs.storedRows.length,
+    );
+    expect(comparison.earlyTs.sideEffects).toEqual(
+      comparison.originalTs.sideEffects,
+    );
+    expect(comparison.earlyRust.sideEffects).toEqual(
+      comparison.originalTs.sideEffects,
+    );
+    return comparison;
+  } finally {
+    dispatch.mockRestore();
+    sampling.mockRestore();
+  }
 }
 
 /**

@@ -7,7 +7,7 @@ import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/u
 import { microsoftAgentProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/otel-genai/fixtures";
 import {
   expectRawNativeParity,
-  runOtelReplayComparison,
+  runSampledOtelReplayComparison,
 } from "./helpers/otelReplayHarness";
 
 type ScopeSpan = NonNullable<ResourceSpan["scopeSpans"]>[number];
@@ -364,7 +364,7 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
       const sourceSpan = resourceSpans[0].scopeSpans?.[0].spans?.[0];
       expect(sourceSpan).toBeDefined();
 
-      const comparison = await runOtelReplayComparison({
+      const comparison = await runSampledOtelReplayComparison({
         bytes: Buffer.from(JSON.stringify(resourceSpans)),
         projectId: `otel-replay-${name.toLowerCase().replaceAll(" ", "-")}`,
         mediaUploadEnabled: true,

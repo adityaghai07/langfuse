@@ -49,17 +49,68 @@ macro_rules! apply_attribute {
     ($row:ident, $field:ident, $attributes:ident) => {};
 }
 
+// These policies describe the pre-insert TypeScript record used for dispatch capacity.
+macro_rules! dispatch_entry {
+    ($map:ident, $row:ident, $key:expr, $field:ident, if_present) => {
+        if let Some(value) = &$row.$field {
+            $map.serialize_entry($key, value)?;
+        }
+    };
+    ($map:ident, $row:ident, $key:expr, $field:ident, empty_string) => {
+        $map.serialize_entry($key, $row.$field.as_deref().unwrap_or_default())?;
+    };
+    ($map:ident, $row:ident, $key:expr, $field:ident, pricing) => {
+        if $row
+            .provided_model_name
+            .as_deref()
+            .is_some_and(|name| !name.is_empty())
+            || !$row.provided_usage_details.is_empty()
+            || !$row.provided_cost_details.is_empty()
+        {
+            $map.serialize_entry($key, &$row.$field)?;
+        }
+    };
+    ($map:ident, $row:ident, $key:expr, $field:ident, evaluation_context) => {
+        if $row.has_evaluation_context {
+            $map.serialize_entry($key, &$row.$field)?;
+        }
+    };
+    ($map:ident, $row:ident, $key:expr, $field:ident, model_parameters) => {
+        let text = $row.$field.as_deref().unwrap_or("{}");
+        match serde_json::from_str::<&serde_json::value::RawValue>(text) {
+            Ok(json) => $map.serialize_entry($key, json)?,
+            Err(_) => $map.serialize_entry($key, text)?,
+        }
+    };
+    ($map:ident, $row:ident, $key:expr, $field:ident) => {
+        $map.serialize_entry($key, &$row.$field)?;
+    };
+}
+
 macro_rules! define_row_types {
-    ($($field:ident $(as $name:literal)? $(logical($logical_ty:ty))? : $ty:ty),* $(,)?) => {
+    ($($field:ident $(as $name:literal)? $(dispatch($dispatch:ident))? $(logical($logical_ty:ty))? : $ty:ty),* $(,)?) => {
         #[derive(Debug)]
         pub struct PreparedEventRow { $(pub(crate) $field: $ty,)* }
 
         #[derive(Clone, Debug, Default, Serialize)]
         pub struct OtelStorageRow {
+            #[serde(skip)]
+            pub(crate) has_evaluation_context: bool,
             $(
                 $(#[serde(rename = $name)])?
                 pub(crate) $field: logical_type!($ty $(, $logical_ty)?),
             )*
+        }
+
+        impl Serialize for TraceDispatchRecord<'_> {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                use serde::ser::SerializeMap;
+                let row = self.0;
+                let mut map = serializer.serialize_map(None)?;
+                map.serialize_entry("id", &row.span_id)?;
+                $(dispatch_entry!(map, row, column_name!($field $(as $name)?), $field $(, $dispatch)?);)*
+                map.end()
+            }
         }
     };
 }
@@ -173,12 +224,12 @@ macro_rules! impl_js_compat {
 
 macro_rules! clickhouse_table_schema {
     ($(
-        $field:ident $(as $name:literal)? $(logical($logical_ty:ty))?
+        $field:ident $(as $name:literal)? $(dispatch($dispatch:ident))? $(logical($logical_ty:ty))?
         $(otel($method:ident [$($key:expr),*]))?
         $(media($media:ident))? $(default($default:ident))?
         : $ty:ty => $policy:expr
     ),* $(,)?) => {
-        define_row_types! { $($field $(as $name)? $(logical($logical_ty))?: $ty,)* }
+        define_row_types! { $($field $(as $name)? $(dispatch($dispatch))? $(logical($logical_ty))?: $ty,)* }
         impl_prepared_row! { $($field $(as $name)?: $ty => $policy,)* }
         impl_js_compat! {
             $($field $(as $name)? $(logical($logical_ty))?

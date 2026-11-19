@@ -388,6 +388,7 @@ pub fn apply_evaluator_test_metadata_default(
     ]
     .into_iter()
     .any(|key| attributes.get(key).is_some_and(|value| !value.is_null()));
+    row.has_evaluation_context = explicit;
     if !explicit {
         row.evaluator_execution_is_test = metadata
             .get("evaluator_test")

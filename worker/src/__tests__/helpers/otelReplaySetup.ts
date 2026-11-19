@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import type { TraceSpanActivity } from "../../features/traceBatching/traceRuleRecording";
 import { env } from "../../env";
 
 const otelReplayMocks = vi.hoisted(() => ({
@@ -10,6 +11,7 @@ const otelReplayMocks = vi.hoisted(() => ({
   fetchEvalRules: vi.fn(),
   hasNoEvalConfigsCache: vi.fn(),
   createEvalSchedulerDeps: vi.fn(),
+  collectTraceActivity: vi.fn<(activity: TraceSpanActivity) => void>(),
   scheduleObservationEvals: vi.fn(),
 }));
 
@@ -91,7 +93,7 @@ export function configureDefaultOtelReplayMocks(): void {
   });
   otelReplayMocks.hasNoEvalConfigsCache.mockResolvedValue(true);
   otelReplayMocks.createEvalSchedulerDeps.mockImplementation(() => ({
-    collectTraceActivity: vi.fn(),
+    collectTraceActivity: otelReplayMocks.collectTraceActivity,
     flushTraceActivity: vi.fn().mockResolvedValue(undefined),
     traceTranscriptRules: Promise.resolve([]),
   }));

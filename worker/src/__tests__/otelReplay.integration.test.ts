@@ -34,6 +34,7 @@ import {
   expectRawNativeParity,
   runOtelReplayComparison,
   runOneOtelReplay,
+  runSampledOtelReplayComparison,
   type OtelRawReplayComparison,
 } from "./helpers/otelReplayHarness";
 import {
@@ -648,6 +649,38 @@ describe(
       // The test owns this mutable mock setup; restore its deterministic
       // defaults so another worker suite in the same process is unaffected.
       configureDefaultOtelReplayMocks();
+    });
+
+    it("reports the same post-overflow byte estimate for sampled traces", async () => {
+      const batch = buildResourceSpans({ separateTraces: true });
+      batch[0]!.scopeSpans[0]!.spans[0]!.attributes.push(
+        {
+          key: "langfuse.evaluator.execution.is_test",
+          value: { boolValue: false },
+        },
+        stringAttribute(
+          "langfuse.observation.cost_details",
+          '{"input":0.000001,"output":1e-7}',
+        ),
+      );
+      const sparse = buildResourceSpans()[0]!;
+      sparse.resource.attributes = [];
+      const scope = sparse.scopeSpans[0]!;
+      scope.scope = { name: "" };
+      const span = scope.spans[0]!;
+      span.spanId = createBufferId("5555555555555555");
+      span.traceId = createBufferId("66666666666666666666666666666666");
+      span.attributes = [
+        stringAttribute("langfuse.observation.output", 'é"🌱'),
+      ];
+      scope.spans = [span];
+      const comparison = await runSampledOtelReplayComparison({
+        bytes: Buffer.from(JSON.stringify([...batch, sparse])),
+        mediaUploadEnabled: true,
+        overflowEnabled: true,
+        overflowSizeLimitBytes: 256,
+      });
+      expect(comparison.originalTs.storedRows).toHaveLength(3);
     });
 
     it("dispatches batch evaluations together and writes each settled observation", async () => {
