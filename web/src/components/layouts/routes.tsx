@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type ProjectScope } from "@langfuse/shared";
+import { type ProjectScope, type Entitlement } from "@langfuse/shared";
 import {
   BellRing,
   Database,
@@ -28,7 +28,6 @@ import {
 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
-import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { type OrganizationScope } from "@langfuse/shared/rbac";

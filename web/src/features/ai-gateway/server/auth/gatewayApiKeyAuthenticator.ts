@@ -12,7 +12,7 @@ import { OrganizationId } from "@langfuse/shared/rbac";
 import { authorize } from "@/src/features/rbac/authorize";
 import { getPoliciesForApiKey } from "@/src/features/auth/policy/contextResolver";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {

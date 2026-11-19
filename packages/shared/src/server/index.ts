@@ -942,6 +942,7 @@ export const getTracesIdentifierForSession =
   getTracesIdentifierForSessionRoutingWrapper;
 
 export * from "./billing/billingLedgerShadow";
+export * from "./entitlements/getPlan";
 
 export { isDnsCompatibleBucketName } from "./outbound-url/validation";
 export { assembleTranscriptContext } from "./transcript/context";

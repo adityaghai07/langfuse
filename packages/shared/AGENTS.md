@@ -33,6 +33,11 @@
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first
   generation in the full thread.
+- Plans and entitlements: the plan → entitlement table and
+  `hasEntitlementBasedOnPlan` live in `src/features/entitlements/` (client-safe
+  barrel); `getOrganizationPlanServerSide` / `getSelfHostedInstancePlanServerSide`
+  in `src/server/entitlements/getPlan.ts` (server barrel), so web and worker
+  resolve an organization's plan the same way.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Audit snapshots and replay: `src/server/repositories/auditLogs.ts`; `getAuditLogResourceRefs` derives bulk trace refs from the persisted snapshot for live staging and backfill.
